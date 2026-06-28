@@ -1,0 +1,5 @@
+groq>=0.11.0
+requests>=2.31.0
+pdfplumber>=0.11.0
+streamlit>=1.38.0
+python-dotenv>=1.0.0

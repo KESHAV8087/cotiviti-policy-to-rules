@@ -1,0 +1,49 @@
+{
+  "version": "2025",
+  "section": "D",
+  "note": "Hand-labeled key provisions of NCCI Chapter 1, Section D (E&M Services). A provision counts as 'captured' if some extracted rule's text contains all of its match `terms`.",
+  "gold": [
+    {
+      "id": "D-g1",
+      "concept": "An E&M on the same day as a major (090-day) surgery, to decide whether to operate, is separately reportable with modifier 57.",
+      "expected_action": "allow",
+      "terms": ["modifier 57"]
+    },
+    {
+      "id": "D-g2",
+      "concept": "Other preoperative E&M on the same day as a major surgery is included in the global payment and not separately reportable.",
+      "expected_action": "deny",
+      "terms": ["global payment"]
+    },
+    {
+      "id": "D-g3",
+      "concept": "The decision to perform a minor surgical procedure is included in its payment and not separately reportable as an E&M.",
+      "expected_action": "deny",
+      "terms": ["decision", "minor"]
+    },
+    {
+      "id": "D-g4",
+      "concept": "A significant, separately identifiable E&M may be reported with modifier 25.",
+      "expected_action": "allow",
+      "terms": ["modifier 25"]
+    },
+    {
+      "id": "D-g5",
+      "concept": "Postoperative E&M related to recovery is included in the global surgical package.",
+      "expected_action": "deny",
+      "terms": ["global surgical package"]
+    },
+    {
+      "id": "D-g6",
+      "concept": "Postoperative visits unrelated to the surgery's diagnosis may be reported with modifier 24.",
+      "expected_action": "allow",
+      "terms": ["modifier 24"]
+    },
+    {
+      "id": "D-g7",
+      "concept": "For XXX-global procedures, a significant separately identifiable E&M may be reported with modifier 25.",
+      "expected_action": "allow",
+      "terms": ["xxx"]
+    }
+  ]
+}

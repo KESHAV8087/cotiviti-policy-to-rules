@@ -1,0 +1,11 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Raw downloaded PDFs (kept out of the repo to stay light; processed text is committed)
+data/raw/
