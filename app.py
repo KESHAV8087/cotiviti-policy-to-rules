@@ -110,6 +110,9 @@ def summarize_section(version: str, section_id: str) -> str:
     sec = tools.get_section(version, section_id)
     if not sec:
         return "Section not found."
+    if len((sec.get("text") or "").split()) < 15:
+        return (f"Section {section_id} ('{sec.get('heading', '')}') has no substantive "
+                f"policy text to summarize (it reads as 'Reserved for future use' or is empty).")
     client = Groq()
     resp = agent._create_with_retry(
         client,
@@ -235,6 +238,13 @@ with tab2:
             else:
                 o = tools.get_section("2024", pick)
                 n = tools.get_section("2025", pick)
+                head_o = (o or {}).get("heading", "")
+                head_n = (n or {}).get("heading", "")
+                text_o = (o or {}).get("text", "").strip()
+                text_n = (n or {}).get("text", "").strip()
+                # Describe an empty side explicitly so the model does not say "not provided".
+                body_o = text_o[:3000] if text_o else "(this section had no body text in 2024)"
+                body_n = text_n[:3000] if text_n else "(this section is empty in 2025; it appears to have been retired or reserved)"
                 with st.spinner("Comparing the two versions…"):
                     try:
                         client = Groq()
@@ -243,9 +253,12 @@ with tab2:
                             model=agent.MODEL, temperature=0.2, max_tokens=350,
                             messages=[
                                 {"role": "system", "content": "You explain what changed between two "
-                                 "versions of a CMS coding policy section. 2-4 plain sentences. No preamble."},
-                                {"role": "user", "content": f"2024:\n{(o or {}).get('text','')[:3000]}\n\n"
-                                 f"2025:\n{(n or {}).get('text','')[:3000]}\n\nWhat changed?"},
+                                 "versions of a CMS coding policy section, including when a section was "
+                                 "retired or reserved. 2-4 plain sentences. No preamble."},
+                                {"role": "user", "content": f"Section {pick}.\n"
+                                 f"2024 heading: {head_o}\n2024 text:\n{body_o}\n\n"
+                                 f"2025 heading: {head_n}\n2025 text:\n{body_n}\n\n"
+                                 f"What changed between 2024 and 2025?"},
                             ],
                         )
                         st.info(resp.choices[0].message.content.strip())

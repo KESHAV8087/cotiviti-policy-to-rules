@@ -75,7 +75,6 @@ cotiviti-policy-to-rules/
 |-- README.md               This file
 |-- Report.docx             2-page written report + references
 |-- Slides.pptx             Presentation deck
-|-- Video_Script.md         Slide-by-slide narration for the video
 |-- src/
 |   |-- ingest.py           Step 1: download + parse the NCCI manual into sections
 |   |-- tools.py            Deterministic tools the agent calls (search, get, diff)
@@ -178,7 +177,7 @@ Note: the **Summarize** and **Extract rules** actions call the Groq API live, so
 
 Open the app with `streamlit run app.py`. There are three tabs.
 
-<!-- screenshot: full app, Summarize & extract tab with grounded rule cards -->
+![Extracted rules with grounding badges (green grounded, red flagged with a reason)](assets/screenshot_grounding.png)
 
 ### Tab 1: Summarize and extract
 
@@ -188,15 +187,17 @@ Open the app with `streamlit run app.py`. There are three tabs.
 - Each rule carries a **grounding badge**: a green badge means the rule's quote was found verbatim in the cited section; a red badge means it could not be grounded and is flagged for review. A **faithfulness metric** at the top shows the share of rules that grounded.
 - Seeing a red flag is not a failure of the demo. It is the guardrail doing its job, refusing to trust a rule it cannot trace to the source.
 
-<!-- screenshot: Compare versions tab showing the 2024 vs 2025 diff -->
+![Version diff between the 2024 and 2025 editions, with a plain-language explanation of a change](assets/screenshot_diff.png)
 
 ### Tab 2: Compare versions
 
-- Runs a section-by-section diff between the 2024 and 2025 editions.
-- Shows which sections changed, including heading changes (for example, a section that went from "Gender-Specific Procedures" to "Reserved for future use") and a text-change score for shared sections.
-- **Explain this change** asks the model to describe a selected change in plain language, grounded in the two versions of the text.
+This tab is change-detection: because CMS revises the manual every year, a section that changed is the signal that any coding rule built on it may need review. The tab turns that into an explicit, reviewable list.
 
-<!-- screenshot: Evaluation tab with faithfulness and recall metric cards -->
+- Runs a section-by-section diff between the 2024 and 2025 editions.
+- Shows which sections changed, including heading changes (for example, Section Q went from "Gender-Specific Procedures" to "Reserved for future use," a real retirement that should trigger a rule update) and a text-change score for shared sections.
+- **Explain this change** asks the model to describe a selected change in plain language, grounded in the two versions of the text, so a reviewer can decide quickly whether a rule needs to change.
+
+![Evaluation metrics (faithfulness and recall) with honest failure analysis](assets/screenshot_evaluation.png)
 
 ### Tab 3: Evaluation
 
@@ -236,7 +237,7 @@ On a hand-labeled set of seven provisions from the Evaluation and Management sec
 
 - `Report.docx`: the two-page written report with references.
 - `Slides.pptx`: the presentation deck.
-- `Video_Script.md`: the slide-by-slide narration for the recorded walkthrough.
+- A recorded video walkthrough of the project and a live demo.
 - This `README.md`: setup, run instructions, and the feature tour.
 - The source code under `src/`, the labeled evaluation under `eval/`, and the parsed data under `data/`.
 

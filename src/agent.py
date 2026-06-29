@@ -254,11 +254,25 @@ def _sentences(text: str) -> list[str]:
     return re.split(r"(?<=[.;:])\s+", text)
 
 
+def _resolve_section(version: str, source_section: str):
+    """Find the cited section even when the model returns it as 'Section D',
+    'D (E&M)', or similar, instead of a bare 'D'. Prevents false 'no-section'
+    flags on rules that are actually grounded."""
+    sec = tools.get_section(version, source_section or "")
+    if sec:
+        return sec
+    valid = {s["section_id"].upper() for s in tools.list_sections(version)}
+    for tok in re.findall(r"[A-Za-z]+", source_section or ""):
+        if tok.upper() in valid:
+            return tools.get_section(version, tok)
+    return None
+
+
 def verify_grounding(version: str, source_section: str, quote: str) -> dict:
     """Is `quote` actually present in the cited section? Exact normalized
     substring -> grounded (1.0). Otherwise best sentence similarity; grounded
     if >= 0.85. Flags fabricated/unsupported quotes."""
-    sec = tools.get_section(version, source_section or "")
+    sec = _resolve_section(version, source_section)
     nq = _norm(quote or "")
     if not sec:
         return {"grounded": False, "score": 0.0, "method": "no-section"}
