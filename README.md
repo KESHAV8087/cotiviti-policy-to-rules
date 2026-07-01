@@ -6,6 +6,12 @@ Built for the Cotiviti GenAI intern assessment (topic: Content Management in Hea
 
 ---
 
+## Demo video
+
+A recorded walkthrough covering the overview, a live demo, and the results: https://drive.google.com/file/d/1gAzEj2hbBlHoEXbLdnQwbmdzs0RC_r9f/view?usp=sharing
+
+---
+
 ## Quickstart
 
 ```powershell
@@ -237,7 +243,7 @@ On a hand-labeled set of seven provisions from the Evaluation and Management sec
 
 - `Report.docx`: the two-page written report with references.
 - `Slides.pptx`: the presentation deck.
-- A recorded video walkthrough of the project and a live demo.
+- A recorded [video walkthrough](https://drive.google.com/file/d/1gAzEj2hbBlHoEXbLdnQwbmdzs0RC_r9f/view?usp=sharing) of the project and a live demo.
 - This `README.md`: setup, run instructions, and the feature tour.
 - The source code under `src/`, the labeled evaluation under `eval/`, and the parsed data under `data/`.
 
