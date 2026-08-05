@@ -23,15 +23,11 @@ import requests
 import pdfplumber
 
 # --- Configuration ----------------------------------------------------------
-# Chapter 1 ("General Correct Coding Policies") of the NCCI Policy Manual.
-# We start with the 2025 edition only and verify parsing before adding the 2026
-# edition for the diff feature in the next step.
 SOURCES = {
     "2024": "https://www.cms.gov/files/document/medicare-ncci-policy-manual-2024-chapter-1.pdf",
     "2025": "https://www.cms.gov/files/document/01-chapter1-ncci-medicare-policy-manual-2025finalcleanpdf.pdf",
 }
 
-# Polite browser-like header; some .gov hosts reject the default requests UA.
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; CotivitiPOC/1.0; research)"}
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -41,15 +37,16 @@ PROCESSED_DIR = ROOT / "data" / "processed"
 # A real section header is a line like:
 #   "B. Coding Based on Standards of Medical/Surgical Practice"
 # a single capital letter, a period, then a Title-cased heading.
-# NOTE: the period "." is deliberately NOT in the heading character class, so a
-# Table-of-Contents line ("A. Introduction.......... I-3") cannot match here.
-# (single-quoted raw string so a literal " can sit in the class; \x27 is the apostrophe)
-# \.\s*  -> the period may be followed by zero spaces (CMS's 2024 PDF drops the space
-# in "D.Evaluation"), one space (the usual case), or several.
+# The period is NOT in the heading character class, so a Table-of-Contents line
+# ("A. Introduction.......... I-3") cannot match here.
 SECTION_HEADER = re.compile(r'^\s*([A-Z])\.\s*([A-Z][A-Za-z0-9 ,/&()\x27’"“”-]{3,90})\s*$')
 
-# Lines to drop entirely: the per-page "Revision Date (Medicare): ..." footer and
-# the bare page-number lines like "I-3".
+# A Table-of-Contents line: a header-like start followed by dot leaders and/or a
+# page reference such as "I-3". Used by the state machine to explicitly reject a
+# boundary that is really a TOC entry, rather than relying on a longest-body
+# heuristic after the fact.
+TOC_LINE = re.compile(r'^\s*[A-Z]\.\s.*(?:\.{3,}|\bI-\d+\b)\s*$')
+
 FOOTER_PATTERNS = [
     re.compile(r"^\s*Revision Date \(Medicare\):.*$"),
     re.compile(r"^\s*I-\d+\s*$"),
@@ -102,32 +99,68 @@ def extract_text(pdf_path: Path) -> str:
 
 
 def split_sections(text: str) -> list[dict]:
-    """Split chapter text into {section_id, heading, text}, TOC-safe."""
+    """Split chapter text into {section_id, heading, text} using an explicit
+    boolean state machine.
+
+    Instead of collecting every header match and then de-duplicating the
+    Table-of-Contents copies by "longest body wins", we walk the lines once and
+    keep an explicit boolean, `in_section`, that says whether we are currently
+    inside a real section body. A header line only *opens* a section when it is
+    not a TOC entry, so the boundary between the TOC and the real chapter is
+    caught directly at the boundary rather than repaired afterwards.
+    """
     lines = text.splitlines()
 
-    # 1) Find every line that looks like a section header.
-    matches = []  # (line_index, section_id, heading)
-    for i, line in enumerate(lines):
-        m = SECTION_HEADER.match(line)
-        if m:
-            matches.append((i, m.group(1), m.group(2).strip()))
+    sections: list[dict] = []
+    in_section = False          # <-- the boolean flag: are we inside a real body?
+    current_id = None
+    current_heading = None
+    current_body: list[str] = []
+    seen_ids: set[str] = set()  # a section_id we've already opened for real
 
-    # 2) For each header, the body is everything up to the next header.
-    candidates = []
-    for idx, (line_i, sid, heading) in enumerate(matches):
-        start = line_i + 1
-        end = matches[idx + 1][0] if idx + 1 < len(matches) else len(lines)
-        body = "\n".join(lines[start:end]).strip()
-        candidates.append({"section_id": sid, "heading": heading, "text": body})
+    def _flush():
+        """Close the current section and append it if it has real content."""
+        if current_id is not None and current_body:
+            body = "\n".join(current_body).strip()
+            if body:
+                sections.append(
+                    {"section_id": current_id, "heading": current_heading, "text": body}
+                )
 
-    # 3) The Table of Contents yields near-empty duplicates of each letter.
-    #    Keep, per section_id, the candidate with the most text (the real body).
+    for line in lines:
+        header = SECTION_HEADER.match(line)
+        is_toc = bool(TOC_LINE.match(line))
+
+        # A header line is a genuine boundary only if it is NOT a TOC entry and
+        # we have not already opened this section id for real. That check is what
+        # the boolean flag makes clean: a TOC "A. Introduction ... I-3" never
+        # flips us into a section, so the TOC can never open a body.
+        if header and not is_toc:
+            sid = header.group(1)
+            heading = header.group(2).strip()
+
+            # Real boundary: flush the previous section, then open the new one.
+            _flush()
+            in_section = True
+            current_id = sid
+            current_heading = heading
+            current_body = []
+            seen_ids.add(sid)
+            continue
+
+        # Any non-header line while we're inside a section is body text.
+        if in_section:
+            current_body.append(line)
+
+    # Flush the final open section.
+    _flush()
+
+    # Safety net: if the same id opened twice (rare), keep the longer body.
     best: dict[str, dict] = {}
-    for c in candidates:
-        if c["section_id"] not in best or len(c["text"]) > len(best[c["section_id"]]["text"]):
-            best[c["section_id"]] = c
+    for s in sections:
+        if s["section_id"] not in best or len(s["text"]) > len(best[s["section_id"]]["text"]):
+            best[s["section_id"]] = s
 
-    # 4) Return sections in order A, B, C, ...
     return [best[k] for k in sorted(best)]
 
 
@@ -141,7 +174,6 @@ def main():
         out_path = PROCESSED_DIR / f"{version}.json"
         out_path.write_text(json.dumps(sections, indent=2))
 
-        # --- Verification summary (paste this back to confirm parsing) -------
         print(f"\n=== {version}: {len(sections)} sections detected ===")
         for s in sections:
             wc = len(s["text"].split())
