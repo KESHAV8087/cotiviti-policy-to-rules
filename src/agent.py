@@ -27,6 +27,7 @@ from pathlib import Path
 
 from groq import Groq
 from dotenv import load_dotenv
+from policyguard_toolkit import sanitize_policy_text  # pip: policyguard-toolkit
 
 import tools  # local module (src/ is on sys.path when run as python src/agent.py)
 
