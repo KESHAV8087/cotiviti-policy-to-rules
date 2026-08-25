@@ -1,14 +1,16 @@
 """
 agent.py  --  the Policy-to-Rules agent (Groq free tier).
 
-A tool-calling loop (Llama 3.3 70B on Groq) that reads NCCI policy sections via
-the deterministic tools in tools.py and extracts structured, source-grounded
+A tool-calling loop (openai/gpt-oss-120b on Groq) that reads NCCI policy sections
+via the deterministic tools in tools.py and extracts structured, source-grounded
 coding rules. After the agent returns its rules, a deterministic grounding check
 verifies every rule's source_quote actually appears in the cited section,
 anything unsupported is flagged as a potential hallucination.
 
 The whole pipeline is model-agnostic; only this file talks to the LLM, so it can
-be pointed at Claude/GPT/Gemini in production by swapping the client.
+be pointed at Claude/GPT/Gemini in production by swapping the client. (Groq
+deprecated Llama 3.3 70B in June 2026; migrating to gpt-oss-120b was a one-line
+model-string change, which is exactly what the model-agnostic design buys.)
 
 Setup:
     1) pip install groq
@@ -158,11 +160,11 @@ def _create_with_retry(client: "Groq", **kwargs):
 def run_agent(task: str, max_steps: int = 5) -> str:
     """Run the tool-calling loop until the model returns a final (tool-free) answer.
 
-    Guards against the smaller models' tendency to loop: it dedupes repeated
-    identical tool calls (returning a cached result instead of re-fetching, which
-    saves tokens and avoids free-tier rate limits), and once any section has been
-    fetched it nudges the model to stop calling tools and emit the JSON. These caps
-    keep a single run well under the per-minute token budget."""
+    Guards against smaller models' tendency to loop: it dedupes repeated identical
+    tool calls (returning a cached result instead of re-fetching, which saves
+    tokens and avoids free-tier rate limits), and once any section has been
+    fetched it forces the model to emit the JSON by no longer offering tools.
+    These caps keep a single run well under the per-minute token budget."""
     client = Groq()  # reads GROQ_API_KEY from the environment
     messages = [
         {"role": "system", "content": SYSTEM},
@@ -173,16 +175,26 @@ def run_agent(task: str, max_steps: int = 5) -> str:
     fetched_section = False
 
     for step in range(1, max_steps + 1):
-        # Once we have fetched a section, force the model to answer (no more tools).
-        resp = _create_with_retry(
-            client,
-            model=MODEL,
-            messages=messages,
-            tools=TOOL_SCHEMAS,
-            tool_choice="none" if fetched_section else "auto",
-            temperature=0.2,
-            max_tokens=2048,
-        )
+        # Once we have fetched a section, force the model to answer by NOT
+        # offering tools at all (safer than tool_choice='none' across models).
+        if fetched_section:
+            resp = _create_with_retry(
+                client,
+                model=MODEL,
+                messages=messages,
+                temperature=0.2,
+                max_tokens=2048,
+            )
+        else:
+            resp = _create_with_retry(
+                client,
+                model=MODEL,
+                messages=messages,
+                tools=TOOL_SCHEMAS,
+                tool_choice="auto",
+                temperature=0.2,
+                max_tokens=2048,
+            )
         msg = resp.choices[0].message
         tool_calls = msg.tool_calls or []
 
@@ -230,11 +242,11 @@ def run_agent(task: str, max_steps: int = 5) -> str:
                 "content": content,
             })
 
-    # Final attempt: we have the text, just ask for the JSON with no tools.
+    # Final attempt: we have the text, just ask for the JSON with no tools offered.
     try:
         resp = _create_with_retry(
             client, model=MODEL, messages=messages,
-            tool_choice="none", temperature=0.2, max_tokens=2048,
+            temperature=0.2, max_tokens=2048,
         )
         return resp.choices[0].message.content or "[]"
     except Exception:
