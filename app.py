@@ -195,10 +195,15 @@ with tab1:
             st.info("Please wait a few seconds between runs to stay within the free-tier limit.")
         else:
             with st.spinner("Agent reading the policy and extracting rules…"):
+                # Large sections produce long output that can exceed the token budget,
+                # so ask for fewer rules when the section is big.
+                n_rules = 3 if wc > 2000 else 5
                 task = (f"From the {version} NCCI Policy Manual, fetch Section {sid} and extract "
-                        f"up to 8 of the most important, concrete coding rules as specified.")
+                        f"up to {n_rules} of the most important, concrete coding rules as specified. "
+                        f"Keep each description and condition to one short sentence.")
                 try:
-                    st.session_state["rules"] = agent.parse_rules(agent.run_agent(task))
+                    raw = agent.run_agent(task)
+                    st.session_state["rules"] = agent.parse_rules(raw)
                     st.session_state["rules_version"] = version
                 except Exception as e:
                     st.session_state.pop("rules", None)
@@ -280,7 +285,7 @@ with tab3:
             with st.spinner("Running the agent and scoring against gold provisions…"):
                 try:
                     task = (f"From the {spec['version']} NCCI Policy Manual, fetch Section "
-                            f"{spec['section']} and extract up to 8 of the most important, "
+                            f"{spec['section']} and extract up to 6 of the most important, "
                             f"concrete coding rules as specified.")
                     rules = agent.parse_rules(agent.run_agent(task))
                     res = ev.evaluate(rules, spec["version"], spec["gold"])
