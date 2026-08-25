@@ -33,7 +33,7 @@ import tools  # local module (src/ is on sys.path when run as python src/agent.p
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
-MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 # Cap the section text fed to the model so a very large section (e.g. V, ~3,700
 # words) stays under the free-tier tokens-per-minute limit. Grounding still runs
