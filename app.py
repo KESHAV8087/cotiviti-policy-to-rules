@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "src"))
 load_dotenv(ROOT / ".env")
 
 import tools            # noqa: E402
-import agent            # noqa: E402  (run_agent, parse_rules, verify_grounding, MODEL, _create_with_retry)
+import policy_agent as agent           # noqa: E402  (run_agent, parse_rules, verify_grounding, MODEL, _create_with_retry)
 import evaluate as ev   # noqa: E402  (evaluate, gold scoring)
 from groq import Groq   # noqa: E402
 

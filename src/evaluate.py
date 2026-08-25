@@ -18,7 +18,7 @@ Run:
 import json
 from pathlib import Path
 
-from agent import run_agent, parse_rules, verify_grounding
+from policy_agent import run_agent, parse_rules, verify_grounding
 
 ROOT = Path(__file__).resolve().parent.parent
 GOLD_PATH = ROOT / "eval" / "labeled_provisions.json"
