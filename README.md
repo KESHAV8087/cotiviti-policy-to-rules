@@ -66,7 +66,7 @@ CMS NCCI Policy Manual  ->  Agent (retrieve, extract)  ->  Grounding check  ->  
 
 The tools that retrieve, look up, and diff policy sections are plain, deterministic Python (no LLM, no network). The model only decides which tool to call and extracts the rules. A separate deterministic function then checks each rule's quote against the source.
 
-The pipeline is model-agnostic. It runs on a free open model by default (Llama 3.3 70B via Groq) and can target any tool-calling model by changing one environment variable.
+The pipeline is model-agnostic. It runs on a free open model by default (gpt-oss-120b via Groq) and can target any tool-calling model by changing one environment variable.
 
 ---
 
@@ -84,7 +84,7 @@ cotiviti-policy-to-rules/
 |-- src/
 |   |-- ingest.py           Step 1: download + parse the NCCI manual into sections
 |   |-- tools.py            Deterministic tools the agent calls (search, get, diff)
-|   |-- agent.py            The tool-calling agent + grounding verification
+|   |-- policy_agent.py     The tool-calling agent + grounding verification
 |   |-- evaluate.py         Labeled evaluation: faithfulness + recall
 |-- eval/
 |   |-- labeled_provisions.json   Hand-labeled ground truth for the evaluation
@@ -129,6 +129,18 @@ On macOS or Linux, the only differences are the activation line (`source .venv/b
 
 Your prompt should show `(.venv)` once the environment is active. The `.env` file is gitignored, so your key is never committed.
 
+### Optional: semantic retrieval
+
+`requirements.txt` deliberately holds only the lightweight dependencies, so the app runs and deploys without a heavy machine-learning stack. The keyword retrieval path, the agent, the grounding check, and the version diff all work with the base install.
+
+Semantic retrieval needs one extra package:
+
+```powershell
+pip install sentence-transformers
+```
+
+Without it, `search_policy_semantic` and `search_policy_hybrid` raise a clear ImportError telling you what to install, and everything else continues to work.
+
 ---
 
 ## Running it
@@ -141,7 +153,7 @@ The parsed policy data is committed under `data/processed/`, so the app and eval
 python src\ingest.py
 ```
 
-Downloads Chapter 1 of the 2024 and 2025 NCCI manuals, extracts the text with `pdfplumber`, strips page footers, and splits each edition into its lettered sections (A through W). It prints a per-section summary and writes `data/processed/2024.json` and `2025.json`. This step needs internet access.
+Downloads Chapter 1 of the 2024 and 2025 NCCI manuals, extracts the text with `pdfplumber`, strips page footers, and splits each edition into its lettered sections (A through W) using a boolean state machine that rejects table-of-contents lines at the boundary. It prints a per-section summary and writes `data/processed/2024.json` and `2025.json`. This step needs internet access.
 
 ### Check the deterministic tools (no API key needed)
 
@@ -149,12 +161,12 @@ Downloads Chapter 1 of the 2024 and 2025 NCCI manuals, extracts the text with `p
 python src\tools.py
 ```
 
-Runs a self-demo of the search and diff tools against the parsed data. You should see the Modifiers section rank top for a modifier query, and the diff report real changes between editions.
+Runs a self-demo of the search and diff tools against the parsed data. You should see the Modifiers section rank top for a modifier query under both keyword and semantic retrieval, and the diff report real changes between editions.
 
 ### Run the agent from the command line
 
 ```powershell
-python src\agent.py
+python src\policy_agent.py
 ```
 
 Fetches a policy section (the Evaluation and Management section by default), shows the agent's tool calls live, extracts structured rules, and prints each rule with its action, grounding score, and source quote, ending with a faithfulness rate. Requires `GROQ_API_KEY` in `.env`.
@@ -218,9 +230,11 @@ This tab is change-detection: because CMS revises the manual every year, a secti
 Environment variables (set in `.env`):
 
 - `GROQ_API_KEY` (required): your Groq API key.
-- `GROQ_MODEL` (optional): the model to use. Defaults to `llama-3.3-70b-versatile`.
+- `GROQ_MODEL` (optional): the model to use. Defaults to `openai/gpt-oss-120b`.
 
 To run on a different model, change `GROQ_MODEL`. Because the pipeline is model-agnostic, the same code works against any tool-calling model with no other changes.
+
+This was tested in practice rather than in theory. The project originally ran on Llama 3.3 70B, which Groq deprecated in June 2026. Because only one file talks to the language model, migrating to `gpt-oss-120b` was a one-line change to the model string.
 
 ---
 
@@ -232,7 +246,9 @@ On a hand-labeled set of seven provisions from the Evaluation and Management sec
 
 ## Limitations and future work
 
-- Retrieval uses keyword matching today; semantic embeddings are the natural next step.
+- Retrieval originally used keyword matching. Semantic embeddings using `all-MiniLM-L6-v2` have since been added, with the keyword baseline kept alongside for comparison and a hybrid option that blends both. Their advantage over keyword on this narrow, jargon-heavy corpus has not yet been measured against a labeled query set, and the agent's search tool is still bound to the keyword function.
+- Vectors are held in memory as a NumPy array with a disk cache, not in a vector database. That is appropriate for a corpus of roughly twenty sections and would need an approximate nearest neighbour index at a larger scale.
+- The grounding check confirms that a cited quote exists in the source. It does not confirm that the rule's interpretation of that quote is correct, so it is a citation-existence check rather than a semantic-correctness check.
 - The evaluation set is small, so this is a feasibility signal, not a production accuracy claim.
 - The proof of concept covers Chapter 1 of the manual; the approach generalizes to the full manual and other policy sources.
 - A dedicated trained model (for example, to route a claim to the right section or predict the edit action) was considered but deliberately deferred. The goal was to stay within the actual ask of a working proof of concept, and the agent plus grounding already proves feasibility without training. A trained model becomes a natural version two once the workflow runs at scale and produces verified, labeled data.
